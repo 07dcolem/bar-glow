@@ -111,7 +111,7 @@ that entry exists):
 Theme-follow is also what the **Use theme colors** button writes. A custom
 color picker value clears `followTheme`.
 
-## Behaviour
+## Behavior
 
 - Follows bar position (top / bottom / left / right), including live drag.
 - Hides with the bar (Super+Shift+Space and autohide plugins that use `bar-off`).
