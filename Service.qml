@@ -279,6 +279,21 @@ Item {
     }
   }
 
+  function callPanel(method) {
+    var host = shell && shell.bar
+    if (!host) return false
+    if (method === "open" && typeof host.summonBarWidget === "function")
+      return host.summonBarWidget(pluginId) === true
+    if (method === "close" && typeof host.hideBarWidget === "function")
+      return host.hideBarWidget(pluginId) === true
+    if (method === "toggle") {
+      var open = typeof host.isBarWidgetOpen === "function" && host.isBarWidgetOpen(pluginId)
+      if (open) return host.hideBarWidget(pluginId) === true
+      return host.summonBarWidget(pluginId) === true
+    }
+    return false
+  }
+
   IpcHandler {
     target: "bar-glow"
 
@@ -301,6 +316,12 @@ Item {
         namespace: "omarchy-bar-glow"
       })
     }
+
+    function open(): void { root.callPanel("open") }
+    function close(): void { root.callPanel("close") }
+    function show(): void { root.callPanel("open") }
+    function hide(): void { root.callPanel("close") }
+    function toggle(): void { root.callPanel("toggle") }
   }
 
   Component.onDestruction: restoreContentColor()

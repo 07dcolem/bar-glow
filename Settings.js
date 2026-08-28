@@ -165,7 +165,10 @@ function writeEntries(config, id, values) {
       entry[key] = values[key]
     }
   }
-  var found = false
+  // Prefer the bar layout. Omarchy's plugin remove only deletes the first
+  // matching location (layout beats plugins[]), so writing both leaves a
+  // stale plugins[] entry that blocks `plugin add --enable` on reinstall.
+  var foundBar = false
   if (isPlainObject(config.bar) && isPlainObject(config.bar.layout)) {
     var sections = ["left", "center", "right"]
     for (var s = 0; s < sections.length; s++) {
@@ -174,20 +177,22 @@ function writeEntries(config, id, values) {
       for (var i = 0; i < arr.length; i++) {
         if (arr[i] && String(arr[i].id) === id) {
           apply(arr[i])
-          found = true
+          foundBar = true
         }
       }
     }
   }
+  if (foundBar) return
+  var foundPlugin = false
   if (Array.isArray(config.plugins)) {
     for (var j = 0; j < config.plugins.length; j++) {
       if (config.plugins[j] && String(config.plugins[j].id) === id) {
         apply(config.plugins[j])
-        found = true
+        foundPlugin = true
       }
     }
   }
-  if (!found) {
+  if (!foundPlugin) {
     if (!Array.isArray(config.plugins)) config.plugins = []
     var entry = { id: id }
     apply(entry)

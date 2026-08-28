@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "bar-glow",
   "name": "Bar Glow",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "author": "07dcolem",
   "license": "MIT",
   "description": "Full-width glow behind the stock Omarchy bar, with a settings panel for opacity, bloom, glow color, and forced glyph color. Does not replace omarchy.bar.",

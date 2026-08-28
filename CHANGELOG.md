@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.3
+
+- Panel IPC (`toggle` / `open` / `close`) lives on the service so it is not
+  stolen by a second `IpcHandler` on the same `bar-glow` target.
+- Settings persist only to the bar layout when the chip is on the bar, so
+  `omarchy plugin remove` does not leave a leftover `plugins[]` entry.
+
 ## 1.2.2
 
 - Public packaging: author `07dcolem`, copyright Dylan Coleman, install URL,
