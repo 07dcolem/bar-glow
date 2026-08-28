@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "id": "bar-glow",
+  "name": "Bar Glow",
+  "version": "1.2.2",
+  "author": "07dcolem",
+  "license": "MIT",
+  "description": "Full-width glow behind the stock Omarchy bar, with a settings panel for opacity, bloom, glow color, and forced glyph color. Does not replace omarchy.bar.",
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "service": "Service.qml",
+    "barWidget": "GlowChip.qml"
+  },
+  "barWidget": {
+    "displayName": "Bar Glow",
+    "description": "Glow wash behind the bar, plus a panel to tune opacity, bloom, colors, and glyph contrast",
+    "category": "Appearance",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "enabled": true,
+      "size": 18,
+      "opacity": 0.72,
+      "color": "#000000",
+      "forceWhite": true,
+      "contentColor": "#ffffff",
+      "followTheme": false
+    },
+    "schema": [
+      {
+        "key": "enabled",
+        "type": "boolean",
+        "label": "Show glow",
+        "defaultValue": true,
+        "description": "Draw the glow wash behind the bar."
+      },
+      {
+        "key": "size",
+        "type": "integer",
+        "label": "Bloom (px)",
+        "min": 0,
+        "max": 40,
+        "step": 1,
+        "defaultValue": 18,
+        "description": "Soft falloff past the inner edge of the bar. 0 is a hard wash with no bloom."
+      },
+      {
+        "key": "opacity",
+        "type": "integer",
+        "label": "Opacity (%)",
+        "min": 20,
+        "max": 100,
+        "step": 2,
+        "defaultValue": 72,
+        "description": "Peak opacity of the glow. Values above 1 in shell.json are treated as percent."
+      },
+      {
+        "key": "color",
+        "type": "string",
+        "label": "Glow color",
+        "defaultValue": "#000000",
+        "description": "Hex color for the wash, or theme to follow Color.background."
+      },
+      {
+        "key": "followTheme",
+        "type": "boolean",
+        "label": "Follow theme colors",
+        "defaultValue": false,
+        "description": "Glow uses the theme background and glyphs use the theme foreground. Live-updates on omarchy theme set."
+      },
+      {
+        "key": "forceWhite",
+        "type": "boolean",
+        "label": "Force glyph color",
+        "defaultValue": true,
+        "description": "Override the wallpaper-sampled bar text color."
+      },
+      {
+        "key": "contentColor",
+        "type": "string",
+        "label": "Glyph color",
+        "defaultValue": "#ffffff",
+        "description": "Forced bar icon/label color. Ignored when Force glyph color is off."
+      }
+    ]
+  }
+}
