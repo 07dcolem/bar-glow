@@ -8,11 +8,13 @@
   "description": "Full-width glow behind the stock Omarchy bar, with a settings panel for opacity, bloom, glow color, and forced glyph color. Does not replace omarchy.bar.",
   "kinds": [
     "service",
-    "bar-widget"
+    "bar-widget",
+    "overlay"
   ],
   "entryPoints": {
     "service": "Service.qml",
-    "barWidget": "GlowChip.qml"
+    "barWidget": "GlowChip.qml",
+    "overlay": "GlowPanel.qml"
   },
   "barWidget": {
     "displayName": "Bar Glow",
