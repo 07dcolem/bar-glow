@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.2.4
+
+- The on/off switch, theme-follow, and glyph toggle update the glow and bar
+  glyphs on the click. Settings are read from the shell's published bar
+  config and written with `updateEntryInline`.
+- Glyph color overrides `bar.text` in the theme shell values, so the bar's
+  own color binding stays intact. Assigning `Color.bar.text` had broken that
+  binding until the shell was restarted.
+- Panel open/close IPC goes through the plugin shell's `summon` / `hide` /
+  `toggle`.
+- Glow and glyph colors use a saturation/value field and a hue bar. Hex is
+  still there for an exact value.
+
 ## 1.2.3
 
 - Panel IPC (`toggle` / `open` / `close`) lives on the service so it is not

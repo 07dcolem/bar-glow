@@ -7,14 +7,14 @@ import qs.Ui
 import "Settings.js" as Settings
 
 Panel {
-  id: root
+  id: panel
   moduleName: "bar-glow"
   ipcTarget: "bar-glow"
   manageIpc: false
 
   property var anchorItem: null
   property var hostWidget: null
-  readonly property var barIdentity: hostWidget || root
+  readonly property var barIdentity: hostWidget || panel
   readonly property color contentForeground: bar ? bar.foreground : Color.popups.text
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
 
@@ -27,87 +27,85 @@ Panel {
   readonly property string glowHex: followTheme ? Settings.colorToHex(Color.background) : Settings.normalizeHex(live.color) || "#000000"
   readonly property string glyphHex: followTheme ? Settings.colorToHex(Color.foreground) : Settings.normalizeHex(live.contentColor) || "#ffffff"
 
-  property var pending: ({})
-  property bool persistQueued: false
+  property var pending: null
 
-  function mergePending(values) {
-    var next = {}
-    var key
-    for (key in pending) next[key] = pending[key]
-    for (key in values) next[key] = values[key]
-    pending = next
-
+  // Toggles commit immediately so the glow and glyphs update on the click.
+  // Sliders and color drags coalesce into one shell.json write.
+  function stage(values, immediate) {
     var entry = Settings.snapshot(settings)
+    var key
     for (key in values) entry[key] = values[key]
     entry.id = Settings.PLUGIN_ID
+    pending = entry
     settings = entry
-    if (hostWidget && "settings" in hostWidget) hostWidget.settings = entry
-
-    persistTimer.restart()
+    if (immediate) persistNow()
+    else persistTimer.restart()
   }
 
   function persistNow() {
     persistTimer.stop()
-    var values = pending
-    pending = ({})
-    if (!values || Object.keys(values).length === 0) return
-    if (!bar || !bar.shell || typeof bar.shell.mutateShellConfig !== "function") return
-    bar.shell.mutateShellConfig(function(config) {
-      Settings.writeEntries(config, Settings.PLUGIN_ID, values)
-    })
+    var entry = pending
+    pending = null
+    if (!entry) return
+    if (hostWidget && typeof hostWidget.commitSettings === "function") {
+      hostWidget.commitSettings(entry)
+      return
+    }
+    if (bar && bar.shell && typeof bar.shell.updateEntryInline === "function")
+      bar.shell.updateEntryInline(Settings.PLUGIN_ID, entry)
   }
 
-  function setEnabled(on) { mergePending({ enabled: on === true }) }
-  function setFollowTheme(on) { mergePending({ followTheme: on === true }) }
-  function setForceGlyphs(on) { mergePending({ forceWhite: on === true }) }
-  function setBloom(px) { mergePending({ size: Settings.sizeValue(px, live.size) }) }
-  function setOpacity(value) { mergePending({ opacity: Settings.opacityValue(value, live.opacity) }) }
+  function setEnabled(on) { stage({ enabled: on === true }, true) }
+  function setFollowTheme(on) { stage({ followTheme: on === true }, true) }
+  function setForceGlyphs(on) { stage({ forceWhite: on === true }, true) }
+  function setBloom(px) { stage({ size: Settings.sizeValue(px, live.size) }, false) }
+  function setOpacity(value) { stage({ opacity: Settings.opacityValue(value, live.opacity) }, false) }
   function setGlowColor(hex) {
-    mergePending({ followTheme: false, color: Settings.normalizeHex(hex) || live.color })
+    stage({ followTheme: false, color: Settings.normalizeHex(hex) || live.color }, false)
   }
   function setGlyphColor(hex) {
-    mergePending({
+    stage({
       followTheme: false,
       forceWhite: true,
       contentColor: Settings.normalizeHex(hex) || live.contentColor
-    })
+    }, false)
   }
   function applyThemeColors() {
-    mergePending({
+    stage({
       followTheme: true,
       forceWhite: true,
       color: "theme",
       contentColor: "theme"
-    })
+    }, true)
   }
 
-  function open() { root.controller.show() }
-  function close() { persistNow(); root.controller.hide() }
+  function open() { panel.controller.show() }
+  function close() { persistNow(); panel.controller.hide() }
   function toggle() { opened ? close() : open() }
 
   Timer {
     id: persistTimer
     interval: 90
     repeat: false
-    onTriggered: root.persistNow()
+    onTriggered: panel.persistNow()
   }
 
   KeyboardPanel {
-    id: panel
-    anchorItem: root.anchorItem
-    owner: root.barIdentity
-    bar: root.bar
-    open: root.opened
+    id: keyboard
+    anchorItem: panel.anchorItem
+    owner: panel.barIdentity
+    bar: panel.bar
+    open: panel.opened
     focusTarget: keyCatcher
-    contentWidth: panel.fittedContentWidth(Style.space(380))
-    contentHeight: panel.fittedContentHeight(body.implicitHeight)
+    contentWidth: keyboard.fittedContentWidth(Style.space(380))
+    contentHeight: keyboard.fittedContentHeight(body.implicitHeight)
 
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
       blocked: glowPicker.editing || glyphPicker.editing
-      onCloseRequested: root.close()
-      onTabRequested: function(direction) { root.switchPanel(direction) }
+      onCloseRequested: panel.close()
+      onTabRequested: function(direction) { panel.switchPanel(direction) }
 
       Flickable {
         id: scroller
@@ -128,8 +126,8 @@ Panel {
             title: "Bar Glow"
             meta: followTheme ? "Following the active theme" : "Custom colors"
             detail: glowOn ? "On" : "Off"
-            foreground: root.contentForeground
-            fontFamily: root.contentFontFamily
+            foreground: panel.contentForeground
+            fontFamily: panel.contentFontFamily
             iconComponent: glowIcon
             trailingControl: enabledSwitch
           }
@@ -138,19 +136,21 @@ Panel {
             id: glowIcon
             Text {
               text: "󰃝"
-              color: root.contentForeground
-              font.family: root.contentFontFamily
+              color: panel.contentForeground
+              font.family: panel.contentFontFamily
               font.pixelSize: Style.font.display
             }
           }
 
+          // PanelHero's own id is `root`. Bind the switch through `panel` so the
+          // knob tracks this panel and the click reaches setEnabled.
           Component {
             id: enabledSwitch
             ToggleSwitch {
-              checked: root.glowOn
-              foreground: root.contentForeground
+              checked: panel.glowOn
+              foreground: panel.contentForeground
               accent: Color.accent
-              onToggled: root.setEnabled(!root.glowOn)
+              onToggled: panel.setEnabled(!panel.glowOn)
             }
           }
 
@@ -158,43 +158,43 @@ Panel {
             width: parent.width
             text: "Use theme colors"
             iconText: "󰏘"
-            foreground: root.contentForeground
+            foreground: panel.contentForeground
             bordered: true
-            onClicked: root.applyThemeColors()
+            onClicked: panel.applyThemeColors()
           }
 
           Text {
             width: parent.width
-            visible: root.followTheme
+            visible: panel.followTheme
             text: "Glow and glyphs track Color.background / Color.foreground. Picking a custom color turns this off."
             wrapMode: Text.WordWrap
-            color: Qt.darker(root.contentForeground, 1.4)
-            font.family: root.contentFontFamily
+            color: Qt.darker(panel.contentForeground, 1.4)
+            font.family: panel.contentFontFamily
             font.pixelSize: Style.font.caption
           }
 
-          PanelSeparator { foreground: root.contentForeground }
+          PanelSeparator { foreground: panel.contentForeground }
 
           PanelSectionHeader {
             text: "GLOW"
-            foreground: root.contentForeground
-            fontFamily: root.contentFontFamily
+            foreground: panel.contentForeground
+            fontFamily: panel.contentFontFamily
           }
 
           RowLayout {
             width: parent.width
             Text {
               text: "Opacity"
-              color: root.contentForeground
-              font.family: root.contentFontFamily
+              color: panel.contentForeground
+              font.family: panel.contentFontFamily
               font.pixelSize: Style.font.bodySmall
               font.bold: true
               Layout.fillWidth: true
             }
             Text {
-              text: Math.round(root.opacityValue * 100) + "%"
-              color: Qt.darker(root.contentForeground, 1.4)
-              font.family: root.contentFontFamily
+              text: Math.round(panel.opacityValue * 100) + "%"
+              color: Qt.darker(panel.contentForeground, 1.4)
+              font.family: panel.contentFontFamily
               font.pixelSize: Style.font.caption
               font.bold: true
             }
@@ -202,28 +202,28 @@ Panel {
 
           PanelSlider {
             width: parent.width
-            bar: root.bar
+            bar: panel.bar
             minimum: 0.2
             maximum: 1
             step: 0.02
-            value: root.opacityValue
-            onMoved: function(v) { root.setOpacity(v) }
+            value: panel.opacityValue
+            onMoved: function(v) { panel.setOpacity(v) }
           }
 
           RowLayout {
             width: parent.width
             Text {
               text: "Bloom"
-              color: root.contentForeground
-              font.family: root.contentFontFamily
+              color: panel.contentForeground
+              font.family: panel.contentFontFamily
               font.pixelSize: Style.font.bodySmall
               font.bold: true
               Layout.fillWidth: true
             }
             Text {
-              text: root.bloomPx + " px"
-              color: Qt.darker(root.contentForeground, 1.4)
-              font.family: root.contentFontFamily
+              text: panel.bloomPx + " px"
+              color: Qt.darker(panel.contentForeground, 1.4)
+              font.family: panel.contentFontFamily
               font.pixelSize: Style.font.caption
               font.bold: true
             }
@@ -231,54 +231,56 @@ Panel {
 
           PanelSlider {
             width: parent.width
-            bar: root.bar
+            bar: panel.bar
             minimum: 0
             maximum: 40
             step: 1
             integer: true
-            value: root.bloomPx
-            onMoved: function(v) { root.setBloom(v) }
+            value: panel.bloomPx
+            onMoved: function(v) { panel.setBloom(v) }
           }
 
           ColorPicker {
             id: glowPicker
             width: parent.width
             label: "Glow color"
-            value: root.glowHex
-            followTheme: root.followTheme
-            foreground: root.contentForeground
+            value: panel.glowHex
+            followTheme: panel.followTheme
+            foreground: panel.contentForeground
+            fontFamily: panel.contentFontFamily
             presets: ["#000000", "#111111", "#1c1c1c", "#2b2b2b", Settings.colorToHex(Color.background), Settings.colorToHex(Color.accent)]
-            onColorPicked: function(hex) { root.setGlowColor(hex) }
+            onColorPicked: function(hex) { panel.setGlowColor(hex) }
           }
 
-          PanelSeparator { foreground: root.contentForeground }
+          PanelSeparator { foreground: panel.contentForeground }
 
           PanelSectionHeader {
             text: "GLYPHS"
-            foreground: root.contentForeground
-            fontFamily: root.contentFontFamily
+            foreground: panel.contentForeground
+            fontFamily: panel.contentFontFamily
           }
 
           Toggle {
             width: parent.width
             label: "Force glyph color"
             description: "Override the wallpaper-sampled bar text so icons stay readable on the glow."
-            checked: root.forceGlyphs
-            foreground: root.contentForeground
+            checked: panel.forceGlyphs
+            foreground: panel.contentForeground
             accent: Color.accent
-            onClicked: root.setForceGlyphs(!root.forceGlyphs)
+            onClicked: panel.setForceGlyphs(!panel.forceGlyphs)
           }
 
           ColorPicker {
             id: glyphPicker
             width: parent.width
             label: "Glyph color"
-            value: root.glyphHex
-            followTheme: root.followTheme
-            interactive: root.forceGlyphs
-            foreground: root.contentForeground
+            value: panel.glyphHex
+            followTheme: panel.followTheme
+            interactive: panel.forceGlyphs
+            foreground: panel.contentForeground
+            fontFamily: panel.contentFontFamily
             presets: ["#ffffff", "#f5f5f5", "#e6e6e6", "#d0d0d0", Settings.colorToHex(Color.foreground), Settings.colorToHex(Color.accent)]
-            onColorPicked: function(hex) { root.setGlyphColor(hex) }
+            onColorPicked: function(hex) { panel.setGlyphColor(hex) }
           }
         }
       }

@@ -73,9 +73,9 @@ Left-click the bar chip (󰃝). The panel is a stock Omarchy `KeyboardPanel`:
 | **Use theme colors** | Glow = theme background, glyphs = theme foreground, and both follow `omarchy theme set` |
 | Opacity | Peak alpha of the wash (20–100%) |
 | Bloom | Soft falloff past the inner edge (0–40 px) |
-| Glow color | HSV + hex + presets. Picking a color turns off theme-follow |
+| Glow color | Saturation/value field, hue bar, presets, and hex. Picking a color turns off theme-follow |
 | Force glyph color | Override the wallpaper-sampled bar text |
-| Glyph color | Forced icon/label color (disabled when Force is off) |
+| Glyph color | Same color field as the glow (disabled when Force is off) |
 
 Changes apply live and persist to `~/.config/omarchy/shell.json`. Esc closes
 the panel.
@@ -114,10 +114,11 @@ color picker value clears `followTheme`.
 ## Behavior
 
 - Follows bar position (top / bottom / left / right), including live drag.
-- Hides with the bar (Super+Shift+Space and autohide plugins that use `bar-off`).
+- Hides with the bar (`shell.bar.barHidden`, including Super+Shift+Space).
 - Multi-monitor: one glow surface per output.
-- If `shell.bar` is missing, watches `bar-off` and polls `hyprctl layers -j`
-  every 2s for namespace `omarchy-bar`.
+- Toggles write the bar entry with `updateEntryInline` and the glow follows
+  `shell.barConfig` immediately. Glyph overrides use the bar's own
+  transparent-foreground switch and leave theme color bindings intact.
 
 ## What this plugin does not do
 

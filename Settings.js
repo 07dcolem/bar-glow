@@ -128,13 +128,23 @@ function readKey(entry, name, fallback) {
   return entry[name]
 }
 
+// shell.json is `{ bar: { layout } }`. The plugin shell publishes `barConfig`,
+// which is the bar object itself (`{ layout }`). Accept both.
+function layoutOf(config) {
+  if (!isPlainObject(config)) return null
+  if (isPlainObject(config.bar) && isPlainObject(config.bar.layout)) return config.bar.layout
+  if (isPlainObject(config.layout)) return config.layout
+  return null
+}
+
 function findEntry(config, id) {
   var fromBar = null
   var fromPlugins = null
-  if (isPlainObject(config) && isPlainObject(config.bar) && isPlainObject(config.bar.layout)) {
+  var layout = layoutOf(config)
+  if (layout) {
     var sections = ["left", "center", "right"]
     for (var s = 0; s < sections.length; s++) {
-      var arr = config.bar.layout[sections[s]]
+      var arr = layout[sections[s]]
       if (!Array.isArray(arr)) continue
       for (var i = 0; i < arr.length; i++) {
         if (arr[i] && String(arr[i].id) === id) fromBar = arr[i]
@@ -169,10 +179,11 @@ function writeEntries(config, id, values) {
   // matching location (layout beats plugins[]), so writing both leaves a
   // stale plugins[] entry that blocks `plugin add --enable` on reinstall.
   var foundBar = false
-  if (isPlainObject(config.bar) && isPlainObject(config.bar.layout)) {
+  var layout = layoutOf(config)
+  if (layout) {
     var sections = ["left", "center", "right"]
     for (var s = 0; s < sections.length; s++) {
-      var arr = config.bar.layout[sections[s]]
+      var arr = layout[sections[s]]
       if (!Array.isArray(arr)) continue
       for (var i = 0; i < arr.length; i++) {
         if (arr[i] && String(arr[i].id) === id) {

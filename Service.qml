@@ -6,8 +6,11 @@ import qs.Commons
 import qs.Ui
 import "Settings.js" as Settings
 
-// Full-width black glow behind the stock Omarchy bar, with forced white
-// bar content. Not a bar replacement: kind is service, not bar.
+// Full-width glow behind the stock Omarchy bar. Not a bar replacement.
+// Settings come from the plugin shell's barConfig (the published bar object).
+// shell.shellConfig is not on that object, so reading it always fell back to
+// defaults and toggles never reached this window. Glyph color is applied by
+// GlowChip, which holds the real bar; this service only draws the wash.
 Item {
   id: root
 
@@ -16,15 +19,27 @@ Item {
   property string omarchyPath: ""
 
   readonly property string pluginId: (manifest && manifest.id) ? String(manifest.id) : "bar-glow"
-  readonly property string home: Quickshell.env("HOME")
-  readonly property string toggleDir: home + "/.local/state/omarchy/toggles"
-  readonly property string userConfigPath: home + "/.config/omarchy/shell.json"
   readonly property color white: Qt.rgba(1, 1, 1, 1)
 
   readonly property var bar: shell && shell.bar ? shell.bar : null
 
-  readonly property var pluginEntry: Settings.findEntry(shell ? shell.shellConfig : null, pluginId)
+  // The panel pushes the new snapshot here in the same click. A shell.json
+  // write can reload a stale copy and bounce barConfig; this override stays
+  // until that published config catches up.
+  property var liveOverride: null
+  readonly property var configEntry: Settings.findEntry(shell ? shell.barConfig : null, pluginId)
+  readonly property var pluginEntry: liveOverride ? liveOverride : configEntry
   readonly property var liveSettings: Settings.snapshot(pluginEntry)
+
+  function applyLive(entry) {
+    liveOverride = Settings.snapshot(entry)
+  }
+
+  onConfigEntryChanged: {
+    if (!liveOverride) return
+    if (JSON.stringify(Settings.snapshot(configEntry)) === JSON.stringify(liveOverride))
+      liveOverride = null
+  }
 
   function setting(name, fallback) {
     return Settings.readKey(root.pluginEntry, name, fallback)
@@ -63,14 +78,11 @@ Item {
     return fallback
   }
 
-  function colorsClose(a, b) {
-    return Math.abs(a.r - b.r) < 0.01 && Math.abs(a.g - b.g) < 0.01
-      && Math.abs(a.b - b.b) < 0.01 && Math.abs(a.a - b.a) < 0.01
-  }
-
   function colorHex(value) {
+    if (!value) return "#000000"
     var c = value
     if (typeof c === "string") c = Qt.color(c)
+    if (!c) return "#000000"
     function hexChannel(channel) {
       var s = Math.round(Util.clamp(channel, 0, 1) * 255).toString(16)
       return s.length < 2 ? "0" + s : s
@@ -97,7 +109,7 @@ Item {
     if (bar && bar.position) return normalizePosition(bar.position)
     var barConfig = shell && shell.barConfig
     if (barConfig && barConfig.position) return normalizePosition(barConfig.position)
-    return normalizePosition(filePosition)
+    return "top"
   }
 
   readonly property bool vertical: configPosition === "left" || configPosition === "right"
@@ -106,191 +118,19 @@ Item {
     return vertical ? Style.bar.sizeVertical : Style.bar.sizeHorizontal
   }
 
-  property bool barOffFlag: false
-  readonly property bool barHidden: {
-    if (bar && "barHidden" in bar) return bar.barHidden === true
-    return barOffFlag
-  }
+  readonly property bool barHidden: bar && bar.barHidden === true
 
-  property bool layersBarVisible: true
-
-  readonly property bool glowShown: settingsEnabled && !barHidden && layersBarVisible
+  readonly property bool glowShown: settingsEnabled && !barHidden
     && liveBarSize > 0 && peakOpacity > 0
 
-  property string filePosition: "top"
-  property bool restoringContent: false
-
-  function applyShellFile(raw) {
-    try {
-      var parsed = JSON.parse(raw)
-      if (parsed && parsed.bar && parsed.bar.position)
-        filePosition = normalizePosition(parsed.bar.position)
-    } catch (e) {
-    }
-  }
-
-  function applyWhiteContent() {
-    if (restoringContent) return
-    if (!settingsEnabled || !forceWhite) return
-
-    if (Color.bar && !colorsClose(Color.bar.text, contentColor))
-      Color.bar.text = contentColor
-
-    var b = root.bar
-    if (!b) return
-    if (!colorsClose(b.transparentForeground, contentColor)) {
-      b.foregroundAnimationEnabled = false
-      b.transparentForeground = contentColor
-      Qt.callLater(function() {
-        if (root.bar) root.bar.foregroundAnimationEnabled = true
-      })
-    }
-  }
-
-  function restoreContentColor() {
-    restoringContent = true
-    if (Color.bar && typeof Color.pick === "function")
-      Color.bar.text = Color.pick("bar.text", Color.foreground)
-    restoringContent = false
-  }
-
-  function screenByName(name) {
-    var screens = Quickshell.screens
-    for (var i = 0; i < screens.length; i++) {
-      if (screens[i] && screens[i].name === name) return screens[i]
-    }
-    return null
-  }
-
-  function surfaceOnOutput(surf, monitorName) {
-    var x = Number(surf.x), y = Number(surf.y), w = Number(surf.w), h = Number(surf.h)
-    if (!isFinite(x) || !isFinite(y) || !isFinite(w) || !isFinite(h) || w <= 0 || h <= 0)
-      return false
-    var screen = screenByName(monitorName)
-    var sw = screen ? screen.width : 1e9
-    var sh = screen ? screen.height : 1e9
-    return x < sw && y < sh && (x + w) > 0 && (y + h) > 0
-  }
-
-  function applyLayers(raw) {
-    var found = false
-    var visible = false
-    try {
-      var data = JSON.parse(raw)
-      for (var monitor in data) {
-        var levels = data[monitor] && data[monitor].levels
-        if (!levels) continue
-        for (var level in levels) {
-          var list = levels[level]
-          if (!Array.isArray(list)) continue
-          for (var i = 0; i < list.length; i++) {
-            var surf = list[i]
-            if (!surf || String(surf.namespace) !== "omarchy-bar") continue
-            found = true
-            if (surfaceOnOutput(surf, monitor)) visible = true
-          }
-        }
-      }
-    } catch (e) {
-      layersBarVisible = true
-      return
-    }
-    layersBarVisible = found && visible
-  }
-
-  onBarChanged: {
-    if (root.bar) root.layersBarVisible = true
-    Qt.callLater(root.applyWhiteContent)
-  }
-  onForceWhiteChanged: forceWhite ? applyWhiteContent() : restoreContentColor()
-  onFollowThemeChanged: applyWhiteContent()
-  onSettingsEnabledChanged: settingsEnabled && forceWhite ? applyWhiteContent() : restoreContentColor()
-  onContentColorChanged: applyWhiteContent()
-
-  Connections {
-    target: Color
-    function onShellValuesChanged() { root.applyWhiteContent() }
-    function onForegroundChanged() { root.applyWhiteContent() }
-    function onBackgroundChanged() { root.applyWhiteContent() }
-  }
-
-  Connections {
-    target: Color.bar
-    function onTextChanged() { root.applyWhiteContent() }
-  }
-
-  Connections {
-    target: root.bar
-    function onTransparentForegroundChanged() { root.applyWhiteContent() }
-    function onThemeForegroundChanged() { root.applyWhiteContent() }
-  }
-
-  Timer {
-    interval: 50
-    running: true
-    repeat: false
-    onTriggered: root.applyWhiteContent()
-  }
-
-  FileView {
-    path: root.userConfigPath
-    watchChanges: true
-    printErrors: false
-    onLoaded: root.applyShellFile(text())
-    onFileChanged: reload()
-  }
-
-  Process {
-    id: barHiddenProbe
-    running: true
-    command: ["bash", "-c", "[[ -f $HOME/.local/state/omarchy/toggles/bar-off ]] && echo yes || echo no"]
-    stdout: SplitParser {
-      onRead: function(line) { root.barOffFlag = String(line).trim() === "yes" }
-    }
-  }
-
-  FileView {
-    path: root.toggleDir
-    watchChanges: true
-    printErrors: false
-    onFileChanged: barHiddenProbe.running = true
-  }
-
-  Process {
-    id: layersProbe
-    command: ["hyprctl", "layers", "-j"]
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: root.applyLayers(text)
-    }
-  }
-
-  Timer {
-    interval: 2000
-    running: root.bar === null
-    repeat: true
-    triggeredOnStart: true
-    onTriggered: {
-      if (root.bar !== null) {
-        root.layersBarVisible = true
-        return
-      }
-      if (!layersProbe.running) layersProbe.running = true
-    }
-  }
-
   function callPanel(method) {
-    var host = shell && shell.bar
-    if (!host) return false
-    if (method === "open" && typeof host.summonBarWidget === "function")
-      return host.summonBarWidget(pluginId) === true
-    if (method === "close" && typeof host.hideBarWidget === "function")
-      return host.hideBarWidget(pluginId) === true
-    if (method === "toggle") {
-      var open = typeof host.isBarWidgetOpen === "function" && host.isBarWidgetOpen(pluginId)
-      if (open) return host.hideBarWidget(pluginId) === true
-      return host.summonBarWidget(pluginId) === true
-    }
+    if (!shell) return false
+    if (method === "open" && typeof shell.summon === "function")
+      return shell.summon(pluginId, "") === true
+    if (method === "close" && typeof shell.hide === "function")
+      return shell.hide(pluginId) === true
+    if (method === "toggle" && typeof shell.toggle === "function")
+      return shell.toggle(pluginId, "") === true
     return false
   }
 
@@ -312,7 +152,6 @@ Item {
         opacity: root.peakOpacity,
         content: root.colorHex(root.contentColor),
         barText: Color.bar ? root.colorHex(Color.bar.text) : "",
-        transparentForeground: root.bar ? root.colorHex(root.bar.transparentForeground) : "",
         namespace: "omarchy-bar-glow"
       })
     }
@@ -323,8 +162,6 @@ Item {
     function hide(): void { root.callPanel("close") }
     function toggle(): void { root.callPanel("toggle") }
   }
-
-  Component.onDestruction: restoreContentColor()
 
   Variants {
     model: Quickshell.screens

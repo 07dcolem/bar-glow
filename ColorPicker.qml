@@ -11,6 +11,7 @@ Column {
   property string value: "#000000"
   property var presets: ["#000000", "#141414", "#2a2a2a", "#4a4a4a", "#888888", "#ffffff"]
   property color foreground: Color.popups.text
+  property string fontFamily: Style.font.family
   property bool interactive: true
   property bool followTheme: false
 
@@ -23,7 +24,7 @@ Column {
   enabled: interactive
 
   readonly property var hsv: Settings.hexToHsv(root.value)
-  property bool sliding: false
+  readonly property int knob: Style.space(14)
 
   function emitHex(hex) {
     var next = Settings.normalizeHex(hex)
@@ -36,13 +37,116 @@ Column {
     emitHex(Settings.hsvToHex(h, s, v))
   }
 
+  function clamp01(n) {
+    return Math.max(0, Math.min(1, n))
+  }
+
   Text {
     visible: root.label !== ""
     text: root.label
     color: Qt.darker(root.foreground, 1.4)
-    font.family: Style.font.family
+    font.family: root.fontFamily
     font.pixelSize: Style.font.bodySmall
     font.bold: true
+  }
+
+  // Saturation across, value down. White-to-hue under a transparent-to-black veil.
+  Item {
+    id: field
+    width: parent.width
+    height: Style.space(128)
+
+    Rectangle {
+      anchors.fill: parent
+      radius: Style.cornerRadius
+      clip: true
+      color: "white"
+
+      Rectangle {
+        anchors.fill: parent
+        gradient: Gradient {
+          orientation: Gradient.Horizontal
+          GradientStop { position: 0.0; color: "white" }
+          GradientStop { position: 1.0; color: Qt.hsva(root.hsv.h, 1, 1, 1) }
+        }
+      }
+
+      Rectangle {
+        anchors.fill: parent
+        gradient: Gradient {
+          GradientStop { position: 0.0; color: "transparent" }
+          GradientStop { position: 1.0; color: "black" }
+        }
+      }
+    }
+
+    Rectangle {
+      width: root.knob
+      height: root.knob
+      radius: width / 2
+      x: root.hsv.s * (field.width - width)
+      y: (1 - root.hsv.v) * (field.height - height)
+      color: "transparent"
+      border.width: 2
+      border.color: root.hsv.v > 0.55 ? "#111111" : "#ffffff"
+    }
+
+    MouseArea {
+      anchors.fill: parent
+      enabled: root.interactive
+      hoverEnabled: true
+      cursorShape: Qt.PointingHandCursor
+      onPressed: function(mouse) { root.emitHsv(root.hsv.h, root.clamp01(mouse.x / width), root.clamp01(1 - mouse.y / height)) }
+      onPositionChanged: function(mouse) {
+        if (!pressed) return
+        root.emitHsv(root.hsv.h, root.clamp01(mouse.x / width), root.clamp01(1 - mouse.y / height))
+      }
+    }
+  }
+
+  // Hue.
+  Item {
+    id: hueBar
+    width: parent.width
+    height: Style.space(16)
+
+    Rectangle {
+      anchors.fill: parent
+      radius: height / 2
+      gradient: Gradient {
+        orientation: Gradient.Horizontal
+        GradientStop { position: 0.00; color: "#ff0000" }
+        GradientStop { position: 0.17; color: "#ffff00" }
+        GradientStop { position: 0.33; color: "#00ff00" }
+        GradientStop { position: 0.50; color: "#00ffff" }
+        GradientStop { position: 0.67; color: "#0000ff" }
+        GradientStop { position: 0.83; color: "#ff00ff" }
+        GradientStop { position: 1.00; color: "#ff0000" }
+      }
+    }
+
+    Rectangle {
+      width: root.knob
+      height: parent.height + Style.space(4)
+      radius: Style.cornerRadius > 0 ? width / 2 : 0
+      y: -Style.space(2)
+      x: root.hsv.h * (hueBar.width - width)
+      color: "transparent"
+      border.width: 2
+      border.color: "#ffffff"
+    }
+
+    MouseArea {
+      anchors.fill: parent
+      enabled: root.interactive
+      hoverEnabled: true
+      cursorShape: Qt.PointingHandCursor
+      onPressed: function(mouse) { root.emitHsv(root.clamp01(mouse.x / width), root.hsv.s, root.hsv.v) }
+      onPositionChanged: function(mouse) {
+        if (!pressed) return
+        root.emitHsv(root.clamp01(mouse.x / width), root.hsv.s, root.hsv.v)
+      }
+    }
   }
 
   Row {
@@ -88,87 +192,10 @@ Column {
       foreground: root.foreground
       text: root.value
       enabled: root.interactive
-      font.family: Style.font.family
+      font.family: root.fontFamily
       font.pixelSize: Style.font.bodySmall
       onEditingFinished: root.emitHex(text)
       onAccepted: root.emitHex(text)
-    }
-  }
-
-  Column {
-    width: parent.width
-    spacing: Style.space(4)
-
-    RowLayout {
-      width: parent.width
-      Text {
-        text: "H"
-        color: Qt.darker(root.foreground, 1.4)
-        font.family: Style.font.family
-        font.pixelSize: Style.font.caption
-        Layout.preferredWidth: Style.space(14)
-      }
-      PanelSlider {
-        Layout.fillWidth: true
-        minimum: 0
-        maximum: 1
-        step: 0.01
-        value: root.hsv.h
-        fillColor: root.foreground
-        knobColor: root.foreground
-        trackColor: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.12)
-        enabled: root.interactive
-        onMoved: function(v) { root.sliding = true; root.emitHsv(v, root.hsv.s, root.hsv.v) }
-        onReleased: function() { root.sliding = false }
-      }
-    }
-
-    RowLayout {
-      width: parent.width
-      Text {
-        text: "S"
-        color: Qt.darker(root.foreground, 1.4)
-        font.family: Style.font.family
-        font.pixelSize: Style.font.caption
-        Layout.preferredWidth: Style.space(14)
-      }
-      PanelSlider {
-        Layout.fillWidth: true
-        minimum: 0
-        maximum: 1
-        step: 0.01
-        value: root.hsv.s
-        fillColor: root.foreground
-        knobColor: root.foreground
-        trackColor: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.12)
-        enabled: root.interactive
-        onMoved: function(v) { root.sliding = true; root.emitHsv(root.hsv.h, v, root.hsv.v) }
-        onReleased: function() { root.sliding = false }
-      }
-    }
-
-    RowLayout {
-      width: parent.width
-      Text {
-        text: "V"
-        color: Qt.darker(root.foreground, 1.4)
-        font.family: Style.font.family
-        font.pixelSize: Style.font.caption
-        Layout.preferredWidth: Style.space(14)
-      }
-      PanelSlider {
-        Layout.fillWidth: true
-        minimum: 0
-        maximum: 1
-        step: 0.01
-        value: root.hsv.v
-        fillColor: root.foreground
-        knobColor: root.foreground
-        trackColor: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.12)
-        enabled: root.interactive
-        onMoved: function(v) { root.sliding = true; root.emitHsv(root.hsv.h, root.hsv.s, v) }
-        onReleased: function() { root.sliding = false }
-      }
     }
   }
 }
