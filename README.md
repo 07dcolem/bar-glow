@@ -1,8 +1,8 @@
 # Bar Glow
 
 Full-width glow behind the **stock** Omarchy 4 (Quattro) bar, so icons and
-labels stay readable on any wallpaper. A settings panel on the bar tunes
-opacity, bloom, glow color, and glyph color.
+labels stay readable on any wallpaper. A settings panel tunes opacity, bloom,
+glow color, and glyph color. The bar icon that opens it is optional.
 
 It does **not** replace `omarchy.bar`. Third-party full-bar clones currently
 fail to load because `Bar.qml` required properties are not injected at
@@ -19,8 +19,9 @@ construction
 omarchy plugin add https://github.com/07dcolem/bar-glow.git --enable
 ```
 
-Omarchy will ask which bar section to use (default: **right**). That is the
-chip that opens the panel.
+Omarchy will ask which bar section to use (default: **right**). That chip
+opens the panel. The icon is optional; [Settings panel](#settings-panel)
+explains how to remove it and still open the panel.
 
 If the folder is already at `~/.config/omarchy/plugins/bar-glow/`:
 
@@ -65,7 +66,35 @@ written under `$OMARCHY_PATH` or `~/.local/share/omarchy`.
 
 ## Settings panel
 
-Left-click the bar chip (󰃝). The panel is a stock Omarchy `KeyboardPanel`:
+Left-click the bar chip (󰃝). The panel anchors to that icon.
+
+The icon is optional. The plugin stays enabled as long as `bar-glow` is
+either on the bar or in `plugins[]`. To drop the icon and keep the glow:
+
+1. Copy the `bar-glow` object from `bar.layout` into top-level `plugins[]`,
+   settings included.
+2. Delete it from the layout section.
+3. Save `~/.config/omarchy/shell.json`. The shell reloads it.
+
+Leave it in only one of those places. `omarchy plugin remove` deletes the
+first match, and the bar layout wins, so a second `plugins[]` copy would
+survive removal. Deleting the layout entry without adding `plugins[]`
+disables the plugin and the glow stops.
+
+With the chip hidden, open the same panel with either command:
+
+```bash
+omarchy-shell shell toggle bar-glow
+omarchy-shell bar-glow toggle
+```
+
+Those commands open the overlay. It has no icon to attach to, so the panel
+uses the existing top-left fallback. Clicking the chip, when it is on the
+bar, still anchors the panel to the icon. Forced glyph color still applies
+with the chip hidden, and theme-follow still tracks `Color.foreground` on
+`omarchy theme set`.
+
+The panel is a stock Omarchy `KeyboardPanel`:
 
 | Control | What it does |
 |---|---|
@@ -82,8 +111,10 @@ the panel.
 
 ## `shell.json` keys
 
-Settings live on the bar-widget entry (and are mirrored onto `plugins[]` if
-that entry exists):
+Settings live on the bar-widget entry while the chip is on the bar. With
+the chip hidden they live on the `plugins[]` entry. When the chip is present
+only the bar entry is written, so `omarchy plugin remove` does not leave a
+second copy behind:
 
 ```json
 {
@@ -116,9 +147,16 @@ color picker value clears `followTheme`.
 - Follows bar position (top / bottom / left / right), including live drag.
 - Hides with the bar (`shell.bar.barHidden`, including Super+Shift+Space).
 - Multi-monitor: one glow surface per output.
-- Toggles write the bar entry with `updateEntryInline` and the glow follows
-  `shell.barConfig` immediately. Glyph overrides use the bar's own
-  transparent-foreground switch and leave theme color bindings intact.
+- A click applies immediately through the service (`applyLive`), then
+  `updateEntryInline` writes `shell.json`. While the chip is on the bar that
+  write goes to the layout entry. With the chip hidden it goes to `plugins[]`.
+  The service reads that file, so either location reaches the glow.
+- Forced glyph color is owned by the service. It copies the theme shell
+  values and sets `bar.text`. It does not assign `Color.bar.text`, so the
+  bar's own color binding stays intact. The previous `bar.text` comes back
+  when the glow is off, force-glyphs is off, or the plugin is removed or
+  disabled. Theme-follow tracks `Color.foreground`, including
+  `omarchy theme set`.
 
 ## What this plugin does not do
 
@@ -137,9 +175,13 @@ omarchy restart shell
 omarchy-shell bar-glow status
 ```
 
-Kinds: `service` (`Service.qml`, the glow surfaces) + `bar-widget`
-(`GlowChip.qml` + `GlowPanel.qml`). Not `bar`. Files are not named
-`BarWidget.qml` / `Panel.qml` so they do not collide with `qs.Ui`.
+Kinds: `service` (`Service.qml`, the glow and the glyph-color override),
+`bar-widget` (`GlowChip.qml`, optional bar icon), and `overlay`
+(`GlowPanel.qml`). Not `bar`. Hide the chip, leave the plugin enabled, and
+open settings with `omarchy-shell shell toggle bar-glow` or
+`omarchy-shell bar-glow toggle`. Forced glyph color still applies with the
+chip hidden. Files are not named `BarWidget.qml` / `Panel.qml` so they do
+not collide with `qs.Ui`.
 
 ## Author
 

@@ -7,10 +7,9 @@ import qs.Ui
 import "Settings.js" as Settings
 
 // Full-width glow behind the stock Omarchy bar. Not a bar replacement.
-// Settings come from the plugin shell's barConfig (the published bar object).
-// shell.shellConfig is not on that object, so reading it always fell back to
-// defaults and toggles never reached this window. Glyph color is applied by
-// GlowChip, which holds the real bar; this service only draws the wash.
+// The published barConfig is the bar object only, so plugins[] is read from
+// the user shell.json. findEntry lets the bar layout win when the chip is
+// present. Glyph color is applied here, including when the chip is hidden.
 Item {
   id: root
 
@@ -27,7 +26,21 @@ Item {
   // write can reload a stale copy and bounce barConfig; this override stays
   // until that published config catches up.
   property var liveOverride: null
-  readonly property var configEntry: Settings.findEntry(shell ? shell.barConfig : null, pluginId)
+  property bool userShellReady: false
+  property var userShellConfig: null
+
+  // barConfig is only the bar object, so a chip-less entry in plugins[] is
+  // invisible there. Once shell.json has loaded, it is the only source:
+  // findEntry lets the bar layout win when the chip is present.
+  readonly property string shellConfigPath: Quickshell.env("HOME") + "/.config/omarchy/shell.json"
+  readonly property var configSource: {
+    if (userShellReady && userShellConfig) return userShellConfig
+    var barPart = shell && shell.barConfig ? shell.barConfig : null
+    return barPart ? { bar: barPart, plugins: [] } : null
+  }
+  readonly property var configEntry: Settings.findEntry(configSource, pluginId)
+  readonly property bool glyphsReady: userShellReady
+    || (configEntry && String(configEntry.id || "") === pluginId)
   readonly property var pluginEntry: liveOverride ? liveOverride : configEntry
   readonly property var liveSettings: Settings.snapshot(pluginEntry)
 
@@ -35,10 +48,116 @@ Item {
     liveOverride = Settings.snapshot(entry)
   }
 
+  function ingestShellText(raw) {
+    var parsed = null
+    try {
+      parsed = JSON.parse(String(raw || ""))
+    } catch (e) {
+      parsed = null
+    }
+    userShellConfig = (parsed && typeof parsed === "object") ? parsed : null
+    userShellReady = true
+  }
+
   onConfigEntryChanged: {
     if (!liveOverride) return
     if (JSON.stringify(Settings.snapshot(configEntry)) === JSON.stringify(liveOverride))
       liveOverride = null
+  }
+
+  // Third-party widgets must not assign Color.bar.text: that breaks the theme
+  // binding until the shell restarts. Copy shellValues and set "bar.text".
+  // One owner, so the chip and this service cannot write the same override.
+  property bool applyingGlyphs: false
+  property bool releasingGlyphs: false
+  property bool holdingBarText: false
+  property string savedBarText: ""
+  property string appliedGlyphHex: ""
+
+  function forcedGlyphHex() {
+    var snap = liveSettings
+    if (!(snap.enabled && snap.forceWhite)) return ""
+    if (snap.followTheme || String(snap.contentColor) === "theme")
+      return Settings.colorToHex(Color.foreground)
+    return Settings.normalizeHex(snap.contentColor) || "#ffffff"
+  }
+
+  function sameColor(a, b) {
+    var left = Settings.normalizeHex(a)
+    var right = Settings.normalizeHex(b)
+    if (left && right) return left === right
+    return String(a || "") === String(b || "")
+  }
+
+  function copyShellValues() {
+    var src = Color.shellValues || {}
+    var next = {}
+    for (var key in src) next[key] = src[key]
+    return next
+  }
+
+  function restoreBarText() {
+    if (!holdingBarText) return
+    holdingBarText = false
+    var restore = copyShellValues()
+    if (savedBarText) restore["bar.text"] = savedBarText
+    else delete restore["bar.text"]
+    savedBarText = ""
+    appliedGlyphHex = ""
+    Color.shellValues = restore
+  }
+
+  function applyGlyphs() {
+    if (!glyphsReady || applyingGlyphs || releasingGlyphs) return
+    applyingGlyphs = true
+    var hex = forcedGlyphHex()
+    var src = Color.shellValues || {}
+    var current = typeof src["bar.text"] === "string" ? src["bar.text"] : ""
+    if (hex) {
+      if (!holdingBarText) {
+        savedBarText = current
+        holdingBarText = true
+      } else if (appliedGlyphHex && !sameColor(current, appliedGlyphHex) && !sameColor(current, hex)) {
+        // A theme reload replaced bar.text under the override. Keep that
+        // value so turning the force off restores the theme, not the old hex.
+        savedBarText = current
+      }
+      appliedGlyphHex = hex
+      if (!sameColor(current, hex)) {
+        var next = copyShellValues()
+        next["bar.text"] = hex
+        Color.shellValues = next
+      }
+    } else {
+      restoreBarText()
+    }
+    applyingGlyphs = false
+  }
+
+  onGlyphsReadyChanged: applyGlyphs()
+  onLiveSettingsChanged: applyGlyphs()
+
+  Connections {
+    target: Color
+    function onForegroundChanged() { root.applyGlyphs() }
+    function onShellValuesChanged() { root.applyGlyphs() }
+  }
+
+  Component.onCompleted: Qt.callLater(root.applyGlyphs)
+  Component.onDestruction: {
+    releasingGlyphs = true
+    restoreBarText()
+  }
+
+  FileView {
+    id: shellConfigFile
+    path: root.shellConfigPath
+    watchChanges: true
+    atomicWrites: true
+    printErrors: true
+    onLoaded: root.ingestShellText(text())
+    onLoadFailed: function(error) { root.ingestShellText("") }
+    onFileChanged: reload()
   }
 
   function setting(name, fallback) {

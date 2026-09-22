@@ -14,6 +14,13 @@ Panel {
 
   property var anchorItem: null
   property var hostWidget: null
+  // The overlay loader injects the scoped plugin shell. The chip path leaves
+  // this null and persists through hostWidget instead.
+  property var shell: null
+  property var glowService: null
+  property int serviceBindAttempts: 0
+  property string committedJson: ""
+  property double committedAt: 0
   readonly property var barIdentity: hostWidget || panel
   readonly property color contentForeground: bar ? bar.foreground : Color.popups.text
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
@@ -42,17 +49,65 @@ Panel {
     else persistTimer.restart()
   }
 
+  function shellApi() {
+    if (bar && bar.shell) return bar.shell
+    return shell
+  }
+
+  function resolveService() {
+    var api = shellApi()
+    if (!api || typeof api.serviceFor !== "function") return null
+    var svc = api.serviceFor(Settings.PLUGIN_ID)
+    return svc || null
+  }
+
+  function bindService() {
+    if (hostWidget) return
+    var svc = resolveService()
+    if (svc !== glowService) glowService = svc
+    if (svc) {
+      serviceBindAttempts = 0
+      adoptFromService()
+      return
+    }
+    if (serviceBindAttempts >= 5) return
+    serviceBindAttempts += 1
+    Qt.callLater(bindService)
+  }
+
+  // The chip pushes settings itself. The overlay has no host, so the panel
+  // follows the service snapshot, which already includes a click's live override.
+  function adoptFromService() {
+    if (hostWidget || pending) return
+    var svc = glowService || resolveService()
+    if (!svc || !svc.liveSettings) return
+    var incoming = Settings.snapshot(svc.liveSettings)
+    var incomingJson = JSON.stringify(incoming)
+    if (committedJson && incomingJson !== committedJson && (Date.now() - committedAt) < 500)
+      return
+    if (JSON.stringify(Settings.snapshot(settings)) === incomingJson) return
+    settings = incoming
+  }
+
   function persistNow() {
     persistTimer.stop()
     var entry = pending
     pending = null
     if (!entry) return
+    var snap = Settings.snapshot(entry)
+    committedJson = JSON.stringify(snap)
+    committedAt = Date.now()
     if (hostWidget && typeof hostWidget.commitSettings === "function") {
       hostWidget.commitSettings(entry)
       return
     }
-    if (bar && bar.shell && typeof bar.shell.updateEntryInline === "function")
-      bar.shell.updateEntryInline(Settings.PLUGIN_ID, entry)
+    var api = shellApi()
+    if (api && typeof api.serviceFor === "function") {
+      var svc = api.serviceFor(Settings.PLUGIN_ID)
+      if (svc && typeof svc.applyLive === "function") svc.applyLive(snap)
+    }
+    if (api && typeof api.updateEntryInline === "function")
+      api.updateEntryInline(Settings.PLUGIN_ID, entry)
   }
 
   function setEnabled(on) { stage({ enabled: on === true }, true) }
@@ -79,7 +134,20 @@ Panel {
     }, true)
   }
 
-  function open() { panel.controller.show() }
+  function open() {
+    if (!hostWidget) adoptFromService()
+    panel.controller.show()
+  }
+
+  onShellChanged: bindService()
+  onHostWidgetChanged: {
+    if (!hostWidget && shell) bindService()
+  }
+
+  Connections {
+    target: panel.glowService
+    function onLiveSettingsChanged() { panel.adoptFromService() }
+  }
   function close() { persistNow(); panel.controller.hide() }
   function toggle() { opened ? close() : open() }
 
