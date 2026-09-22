@@ -2,12 +2,20 @@
 
 ## 1.2.5
 
-- Settings open without the bar icon. The plugin is also an `overlay`, so
-  hiding the chip and leaving `bar-glow` enabled still opens the panel with
+- Settings open without the bar icon. Matt Rich's overlay request in
+  [#1](https://github.com/07dcolem/bar-glow/pull/1) shaped this update.
+  The plugin is also an `overlay`, so hiding the chip and leaving
+  `bar-glow` enabled still opens the panel with
   `omarchy-shell shell toggle bar-glow` or `omarchy-shell bar-glow toggle`.
-- Glyph color is owned by the glow service. Hiding the chip keeps the forced
-  color, including theme-follow, and removing or disabling the plugin restores
-  the previous bar text color.
+  Those commands use the existing top-left fallback. Clicking the chip,
+  when it is on the bar, still anchors the panel to the icon.
+- With the chip on the bar, settings are still written only to that bar
+  entry. With the chip hidden, they are written to the `plugins[]` entry.
+  The service reads `shell.json`, so either place reaches the glow.
+- Glyph color is owned by the glow service. Hiding the chip keeps the
+  forced color, including theme-follow. The previous bar text color comes
+  back when the glow is off, force-glyphs is off, or the plugin is removed
+  or disabled.
 
 ## 1.2.4
 
