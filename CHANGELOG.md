@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.1
+
+- Preset names and hex codes are typed into a plain line that exists only
+  while that row is open. The line does not read the clipboard. Paste is
+  not available there; type the name or the hex code.
+
 ## 1.3.0
 
 - Settings panel matches the quiet KeyboardPanel rhythm. Glow and glyph

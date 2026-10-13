@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
 import qs.Commons
-import qs.Ui
 import "Settings.js" as Settings
 
 Column {
@@ -16,8 +15,12 @@ Column {
   property bool followTheme: false
   property int fieldHeight: Style.space(128)
 
+  // The hex line is created only while the picker card is open. GlowPanel
+  // sets this; a hidden card must not construct an editor.
+  property bool fieldLive: false
+
   signal colorPicked(string hex)
-  readonly property bool editing: hexField.activeFocus
+  readonly property bool editing: hexLoader.item ? hexLoader.item.activeFocus === true : false
 
   spacing: Style.space(8)
   width: parent ? parent.width : implicitWidth
@@ -199,16 +202,22 @@ Column {
       border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.35)
     }
 
-    TextField {
-      id: hexField
+    Loader {
+      id: hexLoader
       Layout.fillWidth: true
-      foreground: root.foreground
-      text: root.value
-      enabled: root.interactive
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.bodySmall
-      onEditingFinished: root.emitHex(text)
-      onAccepted: root.emitHex(text)
+      Layout.preferredHeight: item ? item.implicitHeight : Style.space(28)
+      active: root.fieldLive
+      sourceComponent: PlainLine {
+        width: hexLoader.width
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        fontPixelSize: Style.font.bodySmall
+        maximumLength: 9
+        text: root.value
+        enabled: root.interactive
+        onEditingFinished: function(value) { root.emitHex(value) }
+        onAccepted: function(value) { root.emitHex(value) }
+      }
     }
   }
 }

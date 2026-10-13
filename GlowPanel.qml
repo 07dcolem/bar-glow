@@ -391,19 +391,23 @@ Panel {
   }
   function beginSave() {
     saving = true
-    saveField.text = ""
-    Qt.callLater(function() { saveField.forceActiveFocus() })
+    Qt.callLater(function() {
+      var field = saveLoader.item
+      if (field) field.forceActiveFocus()
+    })
   }
   function cancelSave() {
     saving = false
-    saveField.text = ""
     if (opened && !pickerOpen) keyCatcher.forceActiveFocus()
   }
-  function commitSave() {
-    if (!saveCurrent(saveField.text)) return
-    saving = false
-    saveField.text = ""
-    keyCatcher.forceActiveFocus()
+  function commitSave(name) {
+    var field = saveLoader.item
+    var chosen = (name === undefined || name === null) && field ? field.editText : name
+    if (!saveCurrent(chosen || "")) return
+    Qt.callLater(function() {
+      panel.saving = false
+      if (panel.opened && !panel.pickerOpen) keyCatcher.forceActiveFocus()
+    })
   }
 
   function openPicker(target) {
@@ -534,7 +538,7 @@ Panel {
       id: keyCatcher
       anchors.fill: parent
       z: 1
-      blocked: panel.pickerOpen || saveField.activeFocus
+      blocked: panel.pickerOpen || panel.saving
       onCloseRequested: panel.close()
       onTabRequested: function(direction) { panel.switchPanel(direction) }
       onMoveRequested: function(dx, dy) {
@@ -876,18 +880,22 @@ Panel {
               visible: panel.saving
               spacing: Style.space(8)
 
-              TextField {
-                id: saveField
+              Loader {
+                id: saveLoader
                 Layout.fillWidth: true
-                placeholderText: "Preset name"
-                maximumLength: 32
-                foreground: panel.contentForeground
-                font.family: panel.contentFontFamily
-                font.pixelSize: Style.font.bodySmall
-                onAccepted: panel.commitSave()
-                Keys.onEscapePressed: function(event) {
-                  panel.cancelSave()
-                  event.accepted = true
+                Layout.preferredHeight: item ? item.implicitHeight : Style.space(28)
+                active: panel.saving
+                sourceComponent: PlainLine {
+                  width: saveLoader.width
+                  placeholderText: "Preset name"
+                  maximumLength: 32
+                  handleEscape: true
+                  retainOnBlur: true
+                  foreground: panel.contentForeground
+                  fontFamily: panel.contentFontFamily
+                  fontPixelSize: Style.font.bodySmall
+                  onAccepted: function(value) { panel.commitSave(value) }
+                  onRejected: panel.cancelSave()
                 }
               }
 
@@ -1100,6 +1108,7 @@ Panel {
                 id: picker
                 width: parent.width
                 fieldHeight: Style.space(96)
+                fieldLive: panel.pickerOpen
                 value: panel.pickerTarget === "glyph" ? panel.glyphHex : panel.glowHex
                 followTheme: panel.followTheme
                 foreground: panel.contentForeground
