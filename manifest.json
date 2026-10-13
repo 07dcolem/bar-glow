@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "bar-glow",
   "name": "Bar Glow",
-  "version": "1.2.5",
+  "version": "1.3.0",
   "author": "07dcolem",
   "license": "MIT",
-  "description": "Full-width glow behind the stock Omarchy bar, with a settings panel for opacity, bloom, glow color, and forced glyph color. Does not replace omarchy.bar.",
+  "description": "Full-width glow behind the stock Omarchy bar, with a quiet settings panel for opacity, bloom, colors, presets, and wallpaper sampling. Does not replace omarchy.bar.",
   "kinds": [
     "service",
     "bar-widget",
@@ -29,7 +29,11 @@
       "color": "#000000",
       "forceWhite": true,
       "contentColor": "#ffffff",
-      "followTheme": false
+      "followTheme": false,
+      "followWallpaper": false,
+      "autoContrast": false,
+      "nightLight": false,
+      "tintChip": false
     },
     "schema": [
       {
@@ -86,6 +90,34 @@
         "label": "Glyph color",
         "defaultValue": "#ffffff",
         "description": "Forced bar icon/label color. Ignored when Force glyph color is off."
+      },
+      {
+        "key": "followWallpaper",
+        "type": "boolean",
+        "label": "Follow wallpaper",
+        "defaultValue": false,
+        "description": "Re-sample the strip behind the bar when the wallpaper changes, and use that color for the glow."
+      },
+      {
+        "key": "autoContrast",
+        "type": "boolean",
+        "label": "Auto contrast",
+        "defaultValue": false,
+        "description": "On a light strip, raise the glow opacity and force the glyph toward black or white. Does not change the saved glow hue."
+      },
+      {
+        "key": "nightLight",
+        "type": "boolean",
+        "label": "Warm with night light",
+        "defaultValue": false,
+        "description": "While hyprsunset is warmer than 6000K, shift the glow toward that temperature."
+      },
+      {
+        "key": "tintChip",
+        "type": "boolean",
+        "label": "Tint the bar icon",
+        "defaultValue": false,
+        "description": "Color the bar chip with the live glow color."
       }
     ]
   }

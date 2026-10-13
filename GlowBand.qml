@@ -11,6 +11,12 @@ Item {
   property int glowSize: 18
   property color base: Qt.rgba(0, 0, 0, 1)
   property real peak: 0.7
+  property bool animateColor: false
+
+  Behavior on base {
+    enabled: root.animateColor
+    ColorAnimation { duration: 420; easing.type: Easing.InOutCubic }
+  }
 
   readonly property bool horizontal: edge === "left" || edge === "right"
   readonly property bool fromEnd: edge === "bottom" || edge === "right"

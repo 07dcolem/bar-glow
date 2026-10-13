@@ -9,8 +9,14 @@ var DEFAULTS = {
   color: "#000000",
   forceWhite: true,
   contentColor: "#ffffff",
-  followTheme: false
+  followTheme: false,
+  followWallpaper: false,
+  autoContrast: false,
+  nightLight: false,
+  tintChip: false
 }
+
+var MAX_PRESETS = 8
 
 function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -211,6 +217,177 @@ function writeEntries(config, id, values) {
   }
 }
 
+function colorText(value, fallback) {
+  var text = normalizeHex(value)
+  if (text === "theme" || (text && text.charAt(0) === "#")) return text
+  return fallback
+}
+
+function relativeLuminance(r, g, b) {
+  function linear(channel) {
+    var s = channel > 1 ? channel / 255 : channel
+    return s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4)
+  }
+  return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)
+}
+
+function luminanceOfHex(value) {
+  var rgb = parseHexRgb(value)
+  if (!rgb) return 0
+  return relativeLuminance(rgb.r, rgb.g, rgb.b)
+}
+
+function contrastInkFromLuma(luma) {
+  return Number(luma) > 0.55 ? "#141414" : "#f4f4f4"
+}
+
+function contrastInk(value) {
+  return contrastInkFromLuma(luminanceOfHex(value))
+}
+
+function effectiveOpacity(opacity, luma, enabled, haveSample) {
+  var base = opacityValue(opacity, DEFAULTS.opacity)
+  if (!enabled || !haveSample) return base
+  if (Number(luma) > 0.62) return Math.max(base, 0.88)
+  return base
+}
+
+function kelvinToRgb(kelvin) {
+  var temp = clamp(kelvin, 1000, 40000) / 100
+  var r
+  var g
+  var b
+  if (temp <= 66) {
+    r = 255
+    g = 99.4708025861 * Math.log(temp) - 161.1195681661
+    b = temp <= 19 ? 0 : 138.5177312231 * Math.log(temp - 10) - 305.0447927307
+  } else {
+    r = 329.698727446 * Math.pow(temp - 60, -0.1332047592)
+    g = 288.1221695283 * Math.pow(temp - 60, -0.0755148492)
+    b = 255
+  }
+  return {
+    r: clamp(r, 0, 255) / 255,
+    g: clamp(g, 0, 255) / 255,
+    b: clamp(b, 0, 255) / 255
+  }
+}
+
+// Multiply the glow by a warm gel. 6500K and above, and unknown readings, leave it alone.
+function applyKelvin(value, kelvin) {
+  var hex = colorText(value, "#000000")
+  if (hex === "theme") hex = "#000000"
+  var k = Number(kelvin)
+  if (!isFinite(k) || k <= 0 || k >= 6000) return hex
+  var src = parseHexRgb(hex) || { r: 0, g: 0, b: 0 }
+  var gel = kelvinToRgb(k)
+  var strength = clamp((6000 - k) / 2500, 0, 1)
+  return colorToHex({
+    r: src.r * ((1 - strength) + gel.r * strength),
+    g: src.g * ((1 - strength) + gel.g * strength),
+    b: src.b * ((1 - strength) + gel.b * strength)
+  })
+}
+
+// Wallpaper is drawn with PreserveAspectCrop: scale to cover, crop the center.
+function cropRect(imgW, imgH, screenW, screenH, edge, barPx) {
+  var iw = Math.round(Number(imgW))
+  var ih = Math.round(Number(imgH))
+  var sw = Math.round(Number(screenW))
+  var sh = Math.round(Number(screenH))
+  var bar = Math.round(Number(barPx))
+  if (iw < 2 || ih < 2 || sw < 2 || sh < 2 || bar < 1) return null
+  if (iw * ih > 40000000) return null
+  var scale = Math.max(sw / iw, sh / ih)
+  if (!isFinite(scale) || scale <= 0) return null
+  var offX = (iw * scale - sw) / 2
+  var offY = (ih * scale - sh) / 2
+  var sx = offX
+  var sy = offY
+  var cw = sw
+  var ch = bar
+  if (edge === "bottom") sy = offY + sh - bar
+  else if (edge === "left") { cw = bar; ch = sh }
+  else if (edge === "right") { sx = offX + sw - bar; cw = bar; ch = sh }
+  var x = Math.max(0, Math.floor(sx / scale))
+  var y = Math.max(0, Math.floor(sy / scale))
+  var w = Math.max(1, Math.min(iw - x, Math.ceil(cw / scale)))
+  var h = Math.max(1, Math.min(ih - y, Math.ceil(ch / scale)))
+  if (w < 1 || h < 1 || x >= iw || y >= ih) return null
+  return { x: x, y: y, w: w, h: h }
+}
+
+function cleanPresetName(value) {
+  var name = String(value || "").replace(/[\u0000-\u001f]/g, "").replace(/^\s+|\s+$/g, "")
+  if (!name) return ""
+  if (name.length > 32) name = name.substring(0, 32).replace(/\s+$/g, "")
+  return name
+}
+
+function sanitizePresets(value) {
+  var list = value
+  if (typeof list === "string") {
+    try { list = JSON.parse(list) } catch (e) { list = [] }
+  }
+  if (!Array.isArray(list)) return []
+  var out = []
+  var seen = {}
+  for (var i = 0; i < list.length && out.length < MAX_PRESETS; i++) {
+    var item = list[i]
+    if (!isPlainObject(item)) continue
+    var name = cleanPresetName(item.name)
+    if (!name || seen[name]) continue
+    seen[name] = true
+    out.push({
+      name: name,
+      size: sizeValue(item.size, DEFAULTS.size),
+      opacity: opacityValue(item.opacity, DEFAULTS.opacity),
+      color: colorText(item.color, DEFAULTS.color),
+      contentColor: colorText(item.contentColor, DEFAULTS.contentColor),
+      forceWhite: boolValue(item.forceWhite, true),
+      followTheme: boolValue(item.followTheme, false),
+      followWallpaper: boolValue(item.followWallpaper, false),
+      autoContrast: boolValue(item.autoContrast, false),
+      nightLight: boolValue(item.nightLight, false),
+      tintChip: boolValue(item.tintChip, false)
+    })
+  }
+  return out
+}
+
+function capturePreset(live, name) {
+  var src = isPlainObject(live) ? live : {}
+  var cleaned = sanitizePresets([{
+    name: name,
+    size: src.size,
+    opacity: src.opacity,
+    color: src.followTheme ? "theme" : src.color,
+    contentColor: src.followTheme ? "theme" : src.contentColor,
+    forceWhite: src.forceWhite,
+    followTheme: src.followTheme,
+    followWallpaper: src.followWallpaper && !src.followTheme,
+    autoContrast: src.autoContrast,
+    nightLight: src.nightLight,
+    tintChip: src.tintChip
+  }])
+  return cleaned.length ? cleaned[0] : null
+}
+
+function savePreset(list, preset) {
+  var next = sanitizePresets(list).filter(function(item) { return item.name !== preset.name })
+  next.push(preset)
+  if (next.length > MAX_PRESETS) next = next.slice(next.length - MAX_PRESETS)
+  return next
+}
+
+function removePreset(list, index) {
+  var next = sanitizePresets(list)
+  var at = Math.round(Number(index))
+  if (at < 0 || at >= next.length) return next
+  next.splice(at, 1)
+  return next
+}
+
 function snapshot(entry) {
   var src = isPlainObject(entry) ? entry : {}
   return {
@@ -221,6 +398,11 @@ function snapshot(entry) {
     color: String(readKey(src, "color", DEFAULTS.color)),
     forceWhite: boolValue(readKey(src, "forceWhite", DEFAULTS.forceWhite), DEFAULTS.forceWhite),
     contentColor: String(readKey(src, "contentColor", DEFAULTS.contentColor)),
-    followTheme: boolValue(readKey(src, "followTheme", DEFAULTS.followTheme), DEFAULTS.followTheme)
+    followTheme: boolValue(readKey(src, "followTheme", DEFAULTS.followTheme), DEFAULTS.followTheme),
+    followWallpaper: boolValue(readKey(src, "followWallpaper", DEFAULTS.followWallpaper), DEFAULTS.followWallpaper),
+    autoContrast: boolValue(readKey(src, "autoContrast", DEFAULTS.autoContrast), DEFAULTS.autoContrast),
+    nightLight: boolValue(readKey(src, "nightLight", DEFAULTS.nightLight), DEFAULTS.nightLight),
+    tintChip: boolValue(readKey(src, "tintChip", DEFAULTS.tintChip), DEFAULTS.tintChip),
+    customPresets: sanitizePresets(readKey(src, "customPresets", []))
   }
 }

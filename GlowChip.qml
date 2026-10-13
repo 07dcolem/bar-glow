@@ -1,4 +1,5 @@
 import QtQuick
+import qs.Commons
 import qs.Ui
 import "Settings.js" as Settings
 
@@ -26,6 +27,26 @@ BarWidget {
     if ("settings" in target) target.settings = root.settings
     if ("anchorItem" in target) target.anchorItem = button
     if ("hostWidget" in target) target.hostWidget = root
+  }
+
+  readonly property var glowService: {
+    var api = bar && bar.shell
+    if (!api || typeof api.serviceFor !== "function") return null
+    return api.serviceFor(root.moduleName)
+  }
+  readonly property bool tintChip: {
+    var src = glowService && glowService.liveSettings ? glowService.liveSettings : settings
+    return Settings.snapshot(src).tintChip === true
+  }
+  readonly property color tintColor: glowService && glowService.glowBase
+    ? glowService.glowBase
+    : (Settings.normalizeHex(Settings.snapshot(settings).color) || "#000000")
+
+  function noteExternal(entry) {
+    var snap = Settings.snapshot(entry)
+    committedJson = JSON.stringify(snap)
+    committedAt = Date.now()
+    root.settings = snap
   }
 
   function commitSettings(values) {
@@ -77,6 +98,7 @@ BarWidget {
     anchors.fill: parent
     bar: root.bar
     text: "󰃝"
+    foreground: root.tintChip ? root.tintColor : (bar ? bar.barForeground : Color.foreground)
     tooltipText: root.opened ? "Close bar glow" : "Bar glow"
     onPressed: function(b) {
       if (b === Qt.LeftButton) root.togglePanel()

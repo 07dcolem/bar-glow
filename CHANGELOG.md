@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.3.0
+
+- Settings panel matches the quiet KeyboardPanel rhythm. Glow and glyph
+  colors are compact rows (live swatch, hex, a few theme presets). The
+  full saturation field opens in a nested card on that row. Escape or a
+  click on the rest of the panel closes only the card.
+- A faint background tint behind the controls follows the glow and glyph
+  colors, and brightens briefly when a setting or color changes.
+- Built-in looks: Subtle wash, Strong contrast, Accent only, and Theme
+  only. Save current look stores up to eight named presets on the plugin
+  entry. `x` removes the saved preset under the cursor.
+- Sample under bar reads the wallpaper strip behind the bar (ImageMagick
+  `identify`, then a crop) and sets the glow plus a contrasting glyph.
+  Follow wallpaper, nested under that action, repeats the sample when the
+  wallpaper changes.
+- Auto contrast, night-light warmth, and bar-icon tint are off by default.
+  Auto contrast and night light adjust the live glow without rewriting the
+  saved hue. Theme changes crossfade the wash over 420ms.
+- While the panel is open, `-` and `=` nudge opacity. Arrows move, Enter
+  activates, Escape closes. Undo steps back through changes made since
+  the panel opened. Ctrl+Z does the same. That history is not kept after
+  the panel closes.
+
 ## 1.2.5
 
 - Settings open without the bar icon. Matt Rich's overlay request in

@@ -14,6 +14,7 @@ Column {
   property string fontFamily: Style.font.family
   property bool interactive: true
   property bool followTheme: false
+  property int fieldHeight: Style.space(128)
 
   signal colorPicked(string hex)
   readonly property bool editing: hexField.activeFocus
@@ -37,6 +38,17 @@ Column {
     emitHex(Settings.hsvToHex(h, s, v))
   }
 
+  function nudgeSv(ds, dv) {
+    emitHsv(root.hsv.h, root.clamp01(root.hsv.s + ds), root.clamp01(root.hsv.v + dv))
+  }
+
+  function nudgeHue(dh) {
+    var h = root.hsv.h + dh
+    h = h % 1
+    if (h < 0) h += 1
+    emitHsv(h, root.hsv.s, root.hsv.v)
+  }
+
   function clamp01(n) {
     return Math.max(0, Math.min(1, n))
   }
@@ -44,6 +56,7 @@ Column {
   Text {
     visible: root.label !== ""
     text: root.label
+    textFormat: Text.PlainText
     color: Qt.darker(root.foreground, 1.4)
     font.family: root.fontFamily
     font.pixelSize: Style.font.bodySmall
@@ -54,7 +67,7 @@ Column {
   Item {
     id: field
     width: parent.width
-    height: Style.space(128)
+    height: root.fieldHeight
 
     Rectangle {
       anchors.fill: parent
@@ -83,12 +96,12 @@ Column {
     Rectangle {
       width: root.knob
       height: root.knob
-      radius: width / 2
+      radius: Style.cornerRadius > 0 ? width / 2 : 0
       x: root.hsv.s * (field.width - width)
       y: (1 - root.hsv.v) * (field.height - height)
       color: "transparent"
       border.width: 2
-      border.color: root.hsv.v > 0.55 ? "#111111" : "#ffffff"
+      border.color: root.hsv.v > 0.55 ? Qt.rgba(0, 0, 0, 0.82) : Qt.rgba(1, 1, 1, 0.92)
     }
 
     MouseArea {
@@ -112,7 +125,7 @@ Column {
 
     Rectangle {
       anchors.fill: parent
-      radius: height / 2
+      radius: Style.cornerRadius > 0 ? height / 2 : 0
       gradient: Gradient {
         orientation: Gradient.Horizontal
         GradientStop { position: 0.00; color: "#ff0000" }
@@ -133,7 +146,7 @@ Column {
       x: root.hsv.h * (hueBar.width - width)
       color: "transparent"
       border.width: 2
-      border.color: "#ffffff"
+      border.color: Qt.rgba(1, 1, 1, 0.92)
     }
 
     MouseArea {

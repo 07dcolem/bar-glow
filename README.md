@@ -1,8 +1,9 @@
 # Bar Glow
 
 Full-width glow behind the **stock** Omarchy 4 (Quattro) bar, so icons and
-labels stay readable on any wallpaper. A settings panel tunes opacity, bloom,
-glow color, and glyph color. The bar icon that opens it is optional.
+labels stay readable on any wallpaper. A settings panel tunes opacity,
+bloom, colors, presets, and an optional wallpaper sample. The bar icon
+that opens it is optional.
 
 It does **not** replace `omarchy.bar`. Third-party full-bar clones currently
 fail to load because `Bar.qml` required properties are not injected at
@@ -94,20 +95,89 @@ bar, still anchors the panel to the icon. Forced glyph color still applies
 with the chip hidden, and theme-follow still tracks `Color.foreground` on
 `omarchy theme set`.
 
-The panel is a stock Omarchy `KeyboardPanel`:
+The panel is a stock Omarchy `KeyboardPanel`. Corners stay square unless
+the theme sets `Style.cornerRadius`.
+
+Color rows are a live swatch, a hex label (`Theme` or `Custom`), and a few
+presets (black or white, plus the theme background, foreground, and accent).
+The swatches follow the theme while theme-follow is on. The swatch and the
+label open the full picker in a card next to that row: saturation field, hue
+bar, presets, and hex. Escape, Enter, or a click on the rest of the panel
+closes only that card and returns focus to the panel. Shift+Left /
+Shift+Right move the hue. Plain arrows move saturation and value.
+
+A faint smooth tint sits behind the controls and follows the glow color and
+the glyph color. It brightens for a moment when a setting or color changes.
 
 | Control | What it does |
 |---|---|
 | On/off switch | Show or hide the glow |
 | **Use theme colors** | Glow = theme background, glyphs = theme foreground, and both follow `omarchy theme set` |
-| Opacity | Peak alpha of the wash (20–100%) |
+| **Undo** | Step back through changes made since the panel opened. Ctrl+Z does the same. The history is dropped when the panel closes |
+| Opacity | Peak alpha of the wash (20–100%). `-` and `=` nudge it by 2% while the panel is open |
 | Bloom | Soft falloff past the inner edge (0–40 px) |
-| Glow color | Saturation/value field, hue bar, presets, and hex. Picking a color turns off theme-follow |
+| Glow color | Compact row. A custom pick turns off theme-follow and wallpaper-follow |
 | Force glyph color | Override the wallpaper-sampled bar text |
-| Glyph color | Same color field as the glow (disabled when Force is off) |
+| Glyph color | Compact row, same picker as the glow (disabled when Force is off) |
+| **Subtle wash** | Theme colors, 40% opacity, 8 px bloom, force glyphs on |
+| **Strong contrast** | Black glow, white glyphs, 92% opacity, 32 px bloom |
+| **Accent only** | Current accent glow, current foreground glyphs, 72% opacity, 16 px bloom |
+| **Theme only** | Theme-follow on. Opacity and bloom stay where the sliders are |
+| **Save current look** | Store this look under a name (up to 8) on the plugin entry. `x` deletes the saved row under the cursor |
+| **Sample under bar** | Average the wallpaper behind the bar, set the glow to it, and set the glyph to black or white |
+| Follow wallpaper | Nested under sampling. Re-samples when the wallpaper changes |
+| Auto contrast | Off by default. On a light strip, raises opacity (at least 88%) and forces the glyph light or dark. The saved glow hue stays |
+| Warm with night light | Off by default. While `hyprsunset` is warmer than 6000K, the glow shifts toward that temperature |
+| Tint the bar icon | Off by default. Colors the chip with the live glow |
 
-Changes apply live and persist to `~/.config/omarchy/shell.json`. Esc closes
-the panel.
+Changes apply live and persist to `~/.config/omarchy/shell.json`.
+Arrow keys move between rows, Enter or Space activates the row, and Esc
+closes the panel. **Undo** (or Ctrl+Z) steps back through changes made
+since the panel was opened. Closing the panel drops that history.
+Theme changes crossfade the wash over 420ms, the same curve as the bar text.
+
+Sampling uses `/usr/bin/magick` on the current Omarchy background
+(`~/.local/state/omarchy/current/background`). It crops the strip the bar
+covers, using the same center-crop as the background layer. One color is
+shared across monitors: the sample uses the screen the panel is on, or the
+focused screen when follow runs with the panel closed. If ImageMagick is
+missing, the sample row reports that it could not read the wallpaper and
+leaves the current colors alone.
+
+### Keys
+
+With the panel open:
+
+| Key | Action |
+|---|---|
+| Up / Down, or `k` / `j` | Move between rows |
+| Left / Right | Nudge the slider under the cursor, or step through that row's preset swatches |
+| Enter / Space | Activate the row. On a color row, opens the picker |
+| `-` / `=` | Opacity down / up by 2%, from any row |
+| `x` | Remove the saved preset under the cursor |
+| Esc | Close the picker if it is open, otherwise close the panel |
+
+In the picker, arrows change the field, Shift+Left / Shift+Right change the
+hue, and Esc returns to the panel.
+
+Summon or toggle the panel from anywhere:
+
+```bash
+omarchy-shell bar-glow toggle
+omarchy-shell bar-glow open
+omarchy-shell bar-glow close
+```
+
+To bind that yourself, add a free chord in `~/.config/hypr/bindings.lua`.
+This plugin does not install a binding. For example:
+
+```lua
+o.bind("SUPER + CTRL + G", "Bar glow", "omarchy-shell bar-glow toggle")
+```
+
+Check your current bindings before choosing a chord. `SUPER + CTRL + G` is
+only an illustration. `omarchy-shell shell toggle bar-glow` is the same
+toggle.
 
 ## `shell.json` keys
 
@@ -125,7 +195,12 @@ second copy behind:
   "color": "#000000",
   "forceWhite": true,
   "contentColor": "#ffffff",
-  "followTheme": false
+  "followTheme": false,
+  "followWallpaper": false,
+  "autoContrast": false,
+  "nightLight": false,
+  "tintChip": false,
+  "customPresets": []
 }
 ```
 
@@ -133,14 +208,20 @@ second copy behind:
 |---|---|---|---|
 | `enabled` | boolean | `true` | Draw the glow |
 | `size` | integer | `18` | Bloom in px (0–48). `0` is wash only |
-| `opacity` | number | `0.72` | Peak alpha. Values `> 1` are treated as percent |
+| `opacity` | number | `0.72` | Peak alpha. Values `> 1` are treated as percent. Auto contrast can raise the live value without changing this |
 | `color` | string | `#000000` | Glow hex, or `theme` for `Color.background` |
 | `followTheme` | boolean | `false` | Live-bind glow and glyphs to the active theme |
 | `forceWhite` | boolean | `true` | Force glyph color (name is historical; the color is `contentColor`) |
 | `contentColor` | string | `#ffffff` | Forced glyph hex, or `theme` for `Color.foreground` |
+| `followWallpaper` | boolean | `false` | Re-sample the bar strip when the wallpaper changes |
+| `autoContrast` | boolean | `false` | Raise opacity on a light strip and force a light or dark glyph |
+| `nightLight` | boolean | `false` | Warm the live glow toward the hyprsunset temperature |
+| `tintChip` | boolean | `false` | Tint the bar chip with the live glow color |
+| `customPresets` | array | `[]` | Up to eight saved looks: name, colors, opacity, bloom, and the toggles above |
 
-Theme-follow is also what the **Use theme colors** button writes. A custom
-color picker value clears `followTheme`.
+**Use theme colors** and **Theme only** write `followTheme` and turn
+wallpaper-follow off. A custom color clears both follows. Saved presets
+restore the look they stored, including those toggles.
 
 ## Behavior
 
@@ -154,9 +235,12 @@ color picker value clears `followTheme`.
 - Forced glyph color is owned by the service. It copies the theme shell
   values and sets `bar.text`. It does not assign `Color.bar.text`, so the
   bar's own color binding stays intact. The previous `bar.text` comes back
-  when the glow is off, force-glyphs is off, or the plugin is removed or
-  disabled. Theme-follow tracks `Color.foreground`, including
-  `omarchy theme set`.
+  when the glow is off, force-glyphs is off (and auto contrast is off), or
+  the plugin is removed or disabled. Theme-follow tracks `Color.foreground`,
+  including `omarchy theme set`. A theme change crossfades the wash over
+  420ms.
+- Auto contrast and night light change the live wash only. They do not
+  rewrite the saved glow hex. Wallpaper follow does write the sampled color.
 
 ## What this plugin does not do
 
