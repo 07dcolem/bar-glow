@@ -33,6 +33,7 @@ Panel {
   readonly property bool autoContrast: live.autoContrast
   readonly property bool nightLight: live.nightLight
   readonly property bool tintChip: live.tintChip
+  readonly property bool hideInClear: live.hideInClear
   readonly property int bloomPx: live.size
   readonly property real opacityValue: live.opacity
   readonly property string glowHex: followTheme ? Settings.colorToHex(Color.background) : Settings.normalizeHex(live.color) || "#000000"
@@ -54,7 +55,7 @@ Panel {
       "subtle", "strong", "accent", "themeOnly"]
     var customs = live.customPresets || []
     for (var i = 0; i < customs.length; i++) rows.push("custom:" + i)
-    rows.push("save", "sample", "follow", "contrast", "night", "chip")
+    rows.push("save", "sample", "follow", "clear", "contrast", "night", "chip")
     return rows
   }
   property int cursor: 0
@@ -243,6 +244,7 @@ Panel {
   }
   function setForceGlyphs(on) { stage({ forceWhite: on === true }, true) }
   function setAutoContrast(on) { stage({ autoContrast: on === true }, true) }
+  function setHideInClear(on) { stage({ hideInClear: on === true }, true) }
   function setNightLight(on) { stage({ nightLight: on === true }, true) }
   function setTintChip(on) { stage({ tintChip: on === true }, true) }
   function setBloom(px) { stage({ size: Settings.sizeValue(px, live.size) }, false) }
@@ -385,6 +387,7 @@ Panel {
     else if (id === "save") beginSave()
     else if (id === "sample") requestSample()
     else if (id === "follow") setFollowWallpaper(!followWallpaper)
+    else if (id === "clear") setHideInClear(!hideInClear)
     else if (id === "contrast") setAutoContrast(!autoContrast)
     else if (id === "night") setNightLight(!nightLight)
     else if (id === "chip") setTintChip(!tintChip)
@@ -970,6 +973,17 @@ Panel {
               fontFamily: panel.contentFontFamily
             }
 
+            QuietRow {
+              width: parent.width
+              label: "Hide in clear mode"
+              foreground: panel.contentForeground
+              fontFamily: panel.contentFontFamily
+              showSwitch: true
+              checked: panel.hideInClear
+              hasCursor: panel.cursorId === "clear"
+              onHovered: panel.cursor = panel.rowIndex("clear")
+              onTriggered: panel.setHideInClear(!panel.hideInClear)
+            }
             QuietRow {
               width: parent.width
               label: "Auto contrast"

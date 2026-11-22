@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.4.0
+
+- Hide in clear mode, off by default. While it is on, the wash is not
+  drawn when the bar background is clear. The saved on/off value stays,
+  and the glyph color stays. Glassy and opaque still show the glow.
+  The switch is the first row under Reading, above Auto contrast.
+- Saved looks do not store this switch. Save current look still stores
+  colors, opacity, bloom, and the look toggles.
+- README rewritten: one settings table, the shell.json keys, and a
+  shorter install, remove, and confirm path.
+
 ## 1.3.1
 
 - Preset names and hex codes are typed into a plain line that exists only

@@ -13,7 +13,8 @@ var DEFAULTS = {
   followWallpaper: false,
   autoContrast: false,
   nightLight: false,
-  tintChip: false
+  tintChip: false,
+  hideInClear: false
 }
 
 var MAX_PRESETS = 8
@@ -403,6 +404,7 @@ function snapshot(entry) {
     autoContrast: boolValue(readKey(src, "autoContrast", DEFAULTS.autoContrast), DEFAULTS.autoContrast),
     nightLight: boolValue(readKey(src, "nightLight", DEFAULTS.nightLight), DEFAULTS.nightLight),
     tintChip: boolValue(readKey(src, "tintChip", DEFAULTS.tintChip), DEFAULTS.tintChip),
+    hideInClear: boolValue(readKey(src, "hideInClear", DEFAULTS.hideInClear), DEFAULTS.hideInClear),
     customPresets: sanitizePresets(readKey(src, "customPresets", []))
   }
 }

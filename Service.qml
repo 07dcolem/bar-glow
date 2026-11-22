@@ -325,7 +325,25 @@ Item {
 
   readonly property bool barHidden: bar && bar.barHidden === true
 
+  // The injected bar object is position, size, and barHidden only. It does
+  // not carry clear or glassy. shell.json is the live source: the bar writes
+  // bar.background there, and this FileView reloads on that write. "none" is
+  // clear. Older files say transparent instead. Glassy is not clear.
+  readonly property string barBackgroundName: {
+    var source = null
+    if (userShellReady && userShellConfig && userShellConfig.bar) source = userShellConfig.bar
+    else if (shell && shell.barConfig) source = shell.barConfig
+    if (!source) return ""
+    var look = String(source.background || "")
+    if (look === "none" || look === "glassy" || look === "opaque") return look
+    if (source.transparent === true) return "none"
+    return ""
+  }
+  readonly property bool barClear: barBackgroundName === "none"
+  readonly property bool hideInClear: liveSettings.hideInClear === true
+
   readonly property bool glowShown: settingsEnabled && !barHidden
+    && !(hideInClear && barClear)
     && liveBarSize > 0 && peakOpacity > 0
 
   function callPanel(method) {
@@ -347,6 +365,8 @@ Item {
         id: root.pluginId,
         enabled: root.settingsEnabled,
         shown: root.glowShown,
+        hideInClear: root.hideInClear,
+        barClear: root.barClear,
         followTheme: root.followTheme,
         forceWhite: root.forceWhite,
         glow: root.colorHex(root.glowBase),

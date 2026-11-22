@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "bar-glow",
   "name": "Bar Glow",
-  "version": "1.3.1",
+  "version": "1.4.0",
   "author": "07dcolem",
   "license": "MIT",
-  "description": "Full-width glow behind the stock Omarchy bar, with a quiet settings panel for opacity, bloom, colors, presets, and wallpaper sampling. Does not replace omarchy.bar.",
+  "description": "Full-width glow behind the stock Omarchy bar, with a quiet settings panel for opacity, bloom, colors, presets, and wallpaper sampling. Can hide the wash while the bar background is clear. Does not replace omarchy.bar.",
   "kinds": [
     "service",
     "bar-widget",
@@ -33,7 +33,8 @@
       "followWallpaper": false,
       "autoContrast": false,
       "nightLight": false,
-      "tintChip": false
+      "tintChip": false,
+      "hideInClear": false
     },
     "schema": [
       {
@@ -97,6 +98,13 @@
         "label": "Follow wallpaper",
         "defaultValue": false,
         "description": "Re-sample the strip behind the bar when the wallpaper changes, and use that color for the glow."
+      },
+      {
+        "key": "hideInClear",
+        "type": "boolean",
+        "label": "Hide in clear mode",
+        "defaultValue": false,
+        "description": "Automatically suppress the glow when the bar background is clear."
       },
       {
         "key": "autoContrast",
