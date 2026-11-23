@@ -3,7 +3,7 @@
   "id": "bar-glow",
   "name": "Bar Glow",
   "version": "1.4.0",
-  "author": "07dcolem",
+  "author": "Dylan Coleman",
   "license": "MIT",
   "description": "Full-width glow behind the stock Omarchy bar, with a quiet settings panel for opacity, bloom, colors, presets, and wallpaper sampling. Can hide the wash while the bar background is clear. Does not replace omarchy.bar.",
   "kinds": [
